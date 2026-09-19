@@ -1,0 +1,358 @@
+{
+  "pullRequest": {
+    "owner": "lucaong",
+    "repo": "minisearch",
+    "number": 305
+  },
+  "fileReviews": [
+    {
+      "file": "src/MiniSearch.ts",
+      "codeQuality": {
+        "file": "src/MiniSearch.ts",
+        "issues": [
+          {
+            "line": 1705,
+            "severity": "medium",
+            "category": "bug-risk",
+            "description": "Filter property is unconditionally set to undefined in options spread, potentially overriding searchOptions.filter even when query.filter is not defined",
+            "suggestion": "Only override filter when explicitly provided in query object. Uitional spreading or filter out undefined values after spreading."
+          },
+          {
+            "line": 1710,
+            "severity": "medium",
+            "category": "bug-risk",
+            "description": "Logic error: options.filter is checked but was set to undefined on line 1705. The filter from query object is lost in the spread operation.",
+            "suggestion": "Preserve the query.filter before it gets overwritten. Store it separately: `const combinationFilter = query.filter; const options = { ...searchOptions, filter: undefined, ...query, queries: undefined };` Then use combinationFilter in the conditional check."
+          },
+          {
+            "line": 1711,
+            "severity": "low",
+            "category": "performance",
+            "description": "makeResult is called for every document in combined results only to check the filter condition, creating unnecessary result objects for documents that will be deleted",
+            "suggestion": "Build a new Map instead of mutating: `const filtered = new Map(); for (const [docId, rawValue] of combined) { const result = this.makeResult(docId, rawValue); if (options.filter(result)) filtered.set(docId, rawValue); } return filtered;`"
+          },
+          {
+            "line": 1712,
+            "severity": "info",
+            "category": "maintainability",
+            "description": "Negated condition with continue/delete pattern is less readable than positive condition",
+            "suggestion": "Use positive condition for better readability or build a new filtered Map as suggested above."
+          },
+          {
+            "line": 1960,
+            "severity": "low",
+            "category": "bug-risk",
+            "description": "makeResult accesses _documentIds and _storedFields Maps without null checks. If docId doesn't exist, could return undefined values in result object",
+            "suggestion": "Add defensive checks: `const id = this._documentIds.get(docId); if (id === undefined) { throw new Error('Document ID ${docId} not found'); }` This makes bugs explicit rather than silent."
+          },
+          {
+            "line": 1963,
+            "severity": "info",
+            "category": "best-practice",
+            "description": "The 'quality' calculation uses `|| 1` as a fallback, but terms.length can only be 0 or positive, making the logic unclear",
+            "suggestion": "Use explicit ternary or Math.max for clarity: `const quality = Math.max(terms.length, 1);` This makes the intent clearer."
+          },
+          {
+            "line": 1974,
+            "severity": "low",
+            "category": "best-practice",
+            "description": "Object.assign mutates the result object directly. While functional, this pattern is implicit and harder to trace",
+            "suggestion": "Use spread operator for immutability and clarity: `return { ...result, ...this._storedFields.get(docId) };` Remove the Object.assign statement and merge during return."
+          },
+          {
+            "line": 1965,
+            "severity": "info",
+            "category": "maintainability",
+            "description": "SearchResult type is constructed with explicit properties but then mutated with Object.assign, making the final shape unclear from the code",
+            "suggestion": "Define the complete result object in one statement: `const result: SearchResult = { id: this._documentIds.get(docId), score: score * quality, terms: Object.keys(match), queryTerms: terms, match, ...this._storedFields.get(docId) };`"
+          },
+          {
+            "line": 1386,
+            "severity": "info",
+            "category": "style",
+            "description": "Inconsistent variable naming: 'rawValue' is used in new code but the destructured properties were previously inlined",
+            "suggestion": "Consider using a more descriptive name like 'rawResultValue' to match the RawResultValue type, improving code clarity."
+          },
+          {
+            "line": 1707,
+            "severity": "low",
+            "category": "performance",
+            "description": "executeQuery is called recursively for each subquery, and each call creates a new options object. For deeply nested queries, this could impact performance",
+            "suggestion": "Consider memoizing options object creation or reusing the options object if query structure allows. Profile for performance impact with deeply nested queries."
+          },
+          {
+            "line": 1305,
+            "severity": "info",
+            "category": "style",
+            "description": "Documentation example has inconsistent property name 'queries' inside queries array",
+            "suggestion": "Verify the example is correct. If queries array contains query objects, the property should likely be 'query' not 'queries'."
+          },
+          {
+            "line": 1709,
+            "severity": "info",
+            "category": "maintainability",
+            "description": "Missing comment explaining why filter needs to be applied at QueryCombination level after combining results",
+            "suggestion": "Add explanatory comment: `// Apply filter at combination level to filter the merged results from all subqueries` to clarify the design decision."
+          }
+        ],
+        "overallScore": 72,
+        "summary": "The PR introduces filtering support for sub-queries with generally good code structure and proper extraction of the makeResult method. However, there is a critical logic bug on line 1705 where filter is unconditionally set to undefined, which breaks the intended functionality. The filter from the query object is lost during the spread operation, making the subsequent check ineffective. Additionally, there are minor performance concerns with creating result objects that may be immediately discarded during filtering, and the code would benefit from more defensive null checking in makeResult. The refactoring improves maintainability by reducing code duplication, but the filter handling logic needs correction before merge."
+      },
+      "testCoverage": {
+        "file": "src/MiniSearch.ts",
+        "hasTests": true,
+        "testFiles": [
+          "src/MiniSearch.test.js"
+        ],
+        "untestedPaths": [
+          {
+            "type": "edge-case",
+            "location": "executeQuery() - filter with empty results array",
+            "priority": "high",
+            "reasoning": "The PR applies filters after combining results. If the combined results array is empty, the filter iteration should handle this gracefully.",
+            "suggestedTest": "Test a complex query where all subqueries return empty results: `ms.search({ queries: [{ queries: ['nonexistent'], filter: () => true }] })`"
+          },
+          {
+            "type": "edge-case",
+            "location": "executeQuery() - filter returns false for all results",
+            "priority": "critical",
+            "reasoning": "The filter might reject all results from combined queries. This is a common scenario that could reveal edge cases in result handling and scoring.",
+            "suggestedTest": "Test complex query where filter rejects all results: `ms.search({ queries: [{ queries: ['del', 'como'], filter: () => false }] })` and verify it returns an empty array without errors."
+          },
+          {
+            "type": "edge-case",
+            "location": "executeQuery() - filter function throws an error",
+            "priority": "high",
+            "reasoning": "Error handling in the filter application loop is not tested. A filter that throws could crash the search if not properly handled.",
+            "suggestedTest": "Test that a filter throwing an error is handled gracefully: `ms.search({ queries: [{ queries: ['del'], filter: () => { throw new Error('test') } }] })`"
+          },
+          {
+            "type": "branch",
+            "location": "executeQuery() - filter is undefined/null in QueryCombination",
+            "priority": "medium",
+            "reasoning": "The PR sets filter to undefined when passing to subqueries, but doesn't test the behavior when no filter is provided in a QueryCombination.",
+            "suggestedTest": "Test complex query without any filter: `ms.search({ queries: [{ queries: ['del'] }, { queries: ['como'] }] })` to verify results are not filtered."
+          },
+          {
+            "type": "branch",
+            "location": "executeQuery() - nested QueryCombinations with filters at multiple levels",
+            "priority": "critical",
+            "reasoning": "The PR doesn't test deeply nested query combinations. Each level could have its own filter, and the interaction between parent and child filters is untested.",
+            "suggestedTest": "Test nested QueryCombination: `ms.search({ queries: [{ queries: [{ queries: ['del'], filter: (doc) => doc.id > 5 }], filter: (doc) => doc.category === 'poetry' }] })`"
+          },
+          {
+            "type": "edge-case",
+            "location": "executeQuery() - filter with different query combinators (AND, OR, AND_NOT)",
+            "priority": "high",
+            "reasoning": "The existing test doesn't verify that filtering works correctly with different query combination strategies.",
+            "suggestedTest": "Test filter with AND combinator: `ms.search({ queries: [{ queries: ['del'], combineWith: 'AND', filter: ({ category }) => category === 'poetry' }] })`"
+          },
+          {
+            "type": "edge-case",
+            "location": "makeResult() - handling of undefined or null raw values",
+            "priority": "medium",
+            "reasoning": "The new makeResult() method is extracted but not directly tested. Edge cases like undefined fields, missing scores, or malformed raw data are not verified.",
+            "suggestedTest": "Test indirectly by ensuring filtered results have all expected fields: verify each result has id, score, match, terms properties even when filter modifies the result set."
+          },
+          {
+            "type": "edge-case",
+            "location": "executeQuery() - filter modifying document properties",
+            "priority": "low",
+            "reasoning": "The test doesn't verify that the filter function cannot mutate the original document.",
+            "suggestedTest": "Test that filter function mutations don't affect original documents: apply filter that attempts to modify doc properties, then search again and verify original data is unchanged."
+          },
+          {
+            "type": "branch",
+            "location": "executeQuery() - filter with single query vs array of queries",
+            "priority": "medium",
+            "reasoning": "The test only covers filtering with an array of string queries. Single string queries within a QueryCombination should also be tested.",
+            "suggestedTest": "Test QueryCombination with single string query and filter: `ms.search({ queries: [{ queries: 'del', filter: ({ category }) => category === 'poetry' }] })`"
+          },
+          {
+            "type": "edge-case",
+            "location": "executeQuery() - filter with boosted queries",
+            "priority": "medium",
+            "reasoning": "If queries have different boost values, the filter application after result combination might interact with score ordering in untested ways.",
+            "suggestedTest": "Test filter with boosted subqueries: `ms.search({ queries: [{ queries: ['del'], boost: 2, filter: (doc) => doc.category === 'poetry' }] })`"
+          },
+          {
+            "type": "edge-case",
+            "location": "executeQuery() - performance with large result sets and expensive filters",
+            "priority": "low",
+            "reasoning": "The filter is applied after combining all results. With large result sets, an expensive filter function could cause performance issues.",
+            "suggestedTest": "Performance test with large dataset: search that returns 10000+ results and apply filter, measure execution time to ensure it remains acceptable."
+          },
+          {
+            "type": "branch",
+            "location": "executeQuery() - filter interaction with fuzzy search",
+            "priority": "medium",
+            "reasoning": "The test doesn't verify that filtering works correctly when fuzzy matching is enabled.",
+            "suggestedTest": "Test filter with fuzzy search: `ms.search({ queries: [{ queries: ['del'], fuzzy: 0.2, filter: ({ category }) => category === 'poetry' }] })`"
+          }
+        ],
+        "coverageEstimate": 35,
+        "summary": "The existing test provides basic verification that filters work in complex queries, but coverage is quite limited at approximately 35%. The test validates the happy path with two filtered subqueries returning expected categories, but misses critical edge cases including: empty result handling, filter rejection of all results, error handling when filters throw, nested query combinations with multiple filter levels, and interaction with different query combinators. Most critically, there are no tests for error conditions, null/undefined handling, or the behavior when filters are not provided. To achieve production-ready coverage, at least 12 additional test cases should be added covering the identified untested paths, with highest priority given to error handling, filter rejection scenarios, and nested QueryCombination behavior."
+      },
+      "refactorings": {
+        "file": "src/MiniSearch.ts",
+        "suggestions": [
+          {
+            "type": "simplify",
+            "location": "makeResult() method - quality calculation",
+            "impact": "low",
+            "description": "The quality calculation uses an unnecessary OR operator. Since terms.length is used directly in score calculation, the fallback to 1 seems redundant if terms is always an array.",
+            "before": "const quality = terms.length || 1",
+            "after": "const quality = Math.max(terms.length, 1)",
+            "benefits": "Makes the intent clearer - we want at least 1 as the quality score. Math.max is more explicit about minimum value handling than the || operator."
+          },
+          {
+            "type": "modernize",
+            "location": "makeResult() method - result object construction",
+            "impact": "low",
+            "description": "Object.assign is used to merge stored fields into the result object, but this mutates the result object after creation and makes the object shape less predictable.",
+            "before": "const result: SearchResult = {\n  id: this._documentIds.get(docId),\n  score: score * quality,\n  terms: Object.keys(match),\n  queryTerms: terms,\n  match\n}\n\nObject.assign(result, this._storedFields.get(docId))\n\nreturn result",
+            "after": "return {\n  id: this._documentIds.get(docId),\n  score: score * quality,\n  terms: Object.keys(match),\n  queryTerms: terms,\n  match,\n  ...this._storedFields.get(docId)\n} as SearchResult",
+            "benefits": "Uses modern spread operator for cleaner object composition. Creates the final object in one expression, making it immutable by design."
+          },
+          {
+            "type": "simplify",
+            "location": "executeQuery() method - filter condition",
+            "impact": "low",
+            "description": "The filter check uses a verbose null comparison that can be simplified.",
+            "before": "if (searchOptionsWithDefaults.filter == null || searchOptionsWithDefaults.filter(result)) {\n  results.push(result)\n}",
+            "after": "if (!searchOptionsWithDefaults.filter || searchOptionsWithDefaults.filter(result)) {\n  results.push(result)\n}",
+            "benefits": "Slightly more concise and follows common JavaScript patterns."
+          },
+          {
+            "type": "extract-function",
+            "location": "executeQuery() method - filtering logic in combined results",
+            "impact": "medium",
+            "description": "The filtering logic for combined results is inline and duplicates the filtering pattern used elsewhere. This block mutates the combined Map while iterating.",
+            "before": "if (options.filter) {\n  for (const [docId, rawValue] of combined) {\n    const result = this.makeResult(docId, rawValue)\n    if (!options.filter(result)) combined.delete(docId)\n  }\n}",
+            "after": "if (options.filter) {\n  this.applyFilterToResults(combined, options.filter)\n}\n\nprivate applyFilterToResults(results: Map<number, RawResultValue>, filter: (result: SearchResult) => boolean): void {\n  for (const [docId, rawValue] of results) {\n    const result = this.makeResult(docId, rawValue)\n    if (!filter(result)) results.delete(docId)\n  }\n}",
+            "benefits": "Extracts filtering logic into a reusable method with clear intent. Reduces duplication if filtering needs to be applied elsewhere."
+          },
+          {
+            "type": "pattern-improvement",
+            "location": "executeQuery() method - Map mutation during iteration",
+            "impact": "medium",
+            "description": "Deleting from a Map while iterating over it can be error-prone and unclear. A filter-and-create approach is safer and more functional.",
+            "before": "if (options.filter) {\n  for (const [docId, rawValue] of combined) {\n    const result = this.makeResult(docId, rawValue)\n    if (!options.filter(result)) combined.delete(docId)\n  }\n}",
+            "after": "if (options.filter) {\n  const filtered = new Map<number, RawResultValue>()\n  for (const [docId, rawValue] of combined) {\n    const result = this.makeResult(docId, rawValue)\n    if (options.filter(result)) {\n      filtered.set(docId, rawValue)\n    }\n  }\n  return filtered\n}",
+            "benefits": "Avoids mutating the collection during iteration, which is generally safer. Creates a new filtered Map rather than mutating the original."
+          },
+          {
+            "type": "simplify",
+            "location": "executeQuery() method - options merging",
+            "impact": "low",
+            "description": "The options object is spread multiple times with undefined values being explicitly set, which is verbose.",
+            "before": "const options = { ...searchOptions, filter: undefined, ...query, queries: undefined }",
+            "after": "const { filter, ...queryWithoutFilter } = query\nconst { queries, ...queryWithoutQueries } = queryWithoutFilter\nconst options = { ...searchOptions, ...queryWithoutQueries }",
+            "benefits": "More explicit about which properties are being excluded. Avoids setting properties to undefined unnecessarily."
+          },
+          {
+            "type": "rename",
+            "location": "makeResult() method - rawValue parameter name",
+            "impact": "low",
+            "description": "The parameter destructuring uses a generic name that doesn't indicate what the destructured object contains.",
+            "before": "private makeResult (docId: number, { score, terms, match }: RawResultValue): SearchResult",
+            "after": "private makeResult (docId: number, rawResult: RawResultValue): SearchResult {\n  const { score, terms, match } = rawResult",
+            "benefits": "Separates parameter declaration from destructuring, making the function signature cleaner and easier to read."
+          },
+          {
+            "type": "pattern-improvement",
+            "location": "search() method - result array building with filter",
+            "impact": "medium",
+            "description": "Building an array with conditional push is less efficient and less declarative than using Array methods.",
+            "before": "for (const [docId, rawValue] of rawResults) {\n  const result = this.makeResult(docId, rawValue)\n  if (searchOptionsWithDefaults.filter == null || searchOptionsWithDefaults.filter(result)) {\n    results.push(result)\n  }\n}",
+            "after": "const results = Array.from(rawResults.entries())\n  .map(([docId, rawValue]) => this.makeResult(docId, rawValue))\n  .filter(result => \n    !searchOptionsWithDefaults.filter || searchOptionsWithDefaults.filter(result)\n  )",
+            "benefits": "More declarative and functional approach. Separates transformation (map) from filtering (filter) concerns. More maintainable as each operation is isolated."
+          }
+        ],
+        "summary": "The PR introduces a well-structured makeResult() method that successfully eliminates duplication. However, there are opportunities to modernize the code with ES6+ features (spread operator instead of Object.assign), improve safety (avoid Map mutation during iteration), and enhance readability (extract filtering logic, use declarative array methods). The most impactful improvements are: (1) extracting the filter application logic to reduce duplication, (2) avoiding Map mutation during iteration for safety, and (3) using declarative array methods for more maintainable code. The quality calculation and options merging could also benefit from minor simplifications for clarity."
+      }
+    }
+  ],
+  "summary": {
+    "totalFiles": 1,
+    "overallScore": 72,
+    "criticalIssues": 2,
+    "highPriorityTests": 4,
+    "refactoringOpportunities": 8
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "category": "Bug Fix",
+      "description": "Fix the filter handling logic in executeQuery() method. The filter property is unconditionally set to undefined on line 1705, causing the query.filter to be lost. This breaks the core functionality of the PR. Store the filter separately before spreading or use destructuring to exclude it properly.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "critical",
+      "category": "Test Coverage",
+      "description": "Add critical test cases for edge conditions: (1) filter that rejects all results, (2) nested QueryCombinations with filters at multiple levels, (3) error handling when filter throws exceptions. These scenarios are essential for production reliability.",
+      "files": [
+        "src/MiniSearch.test.js"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Test Coverage",
+      "description": "Add tests for different query combinators (AND, OR, AND_NOT) with filters, empty result sets, and filter interactions with fuzzy search. Current coverage is only 35% and misses important branches.",
+      "files": [
+        "src/MiniSearch.test.js"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Code Quality",
+      "description": "Add defensive null checks in makeResult() method when accessing _documentIds and _storedFields Maps. If docId doesn't exist, the function should throw an explicit error rather than returning undefined values silently.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Performance",
+      "description": "Optimize filter application by avoiding Map mutation during iteration. Create a new filtered Map instead of deleting entries while iterating, which is safer and more functional. This also avoids creating result objects for documents that will be immediately discarded.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Code Quality",
+      "description": "Modernize makeResult() method by using spread operator instead of Object.assign for better immutability and clarity. Replace mutation pattern with single object creation expression.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "low",
+      "category": "Maintainability",
+      "description": "Extract filter application logic into a separate method (applyFilterToResults) to reduce duplication and improve reusability. Add explanatory comments for the design decision to apply filters at QueryCombination level.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    },
+    {
+      "priority": "low",
+      "category": "Code Style",
+      "description": "Use Math.max for quality calculation instead of || operator for clearer intent. Use destructuring for options merging instead of explicit undefined assignment. These changes improve code clarity.",
+      "files": [
+        "src/MiniSearch.ts"
+      ]
+    }
+  ],
+  "metadata": {
+    "analyzedAt": "2026-09-19T12:00:00Z",
+    "duration": 45000,
+    "agentVersions": {
+      "code-quality-analyzer": "a8db868",
+      "test-coverage-analyzer": "ab6ad0b",
+      "refactoring-suggester": "a171e1e"
+    }
+  }
+}
