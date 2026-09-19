@@ -8,6 +8,7 @@ export const refactoringSuggester: AgentDefinition = {
   prompt: REFACTORING_SUGGESTER_PROMPT,
 
   tools: [
+    'Skill',
     'Read',
     'Grep',
     'Glob',

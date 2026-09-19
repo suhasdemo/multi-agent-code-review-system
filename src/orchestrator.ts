@@ -70,8 +70,7 @@ export class CodeReviewOrchestrator {
            * MCP wildcard names allow tools exposed by the configured
            * GitHub and ESLint MCP servers.
            */
-          permissionMode: 'bypassPermissions',
-          allowDangerouslySkipPermissions: true,
+          
           allowedTools: [
             'Task',
             'mcp_github_get_pull_request',

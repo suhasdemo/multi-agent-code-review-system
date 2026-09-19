@@ -8,6 +8,7 @@ export const testCoverageAnalyzer: AgentDefinition = {
   prompt: TEST_COVERAGE_ANALYZER_PROMPT,
 
   tools: [
+    'Skill',
     'Read',
     'Grep',
     'Glob',
