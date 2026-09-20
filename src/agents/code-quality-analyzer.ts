@@ -10,8 +10,9 @@ export const codeQualityAnalyzer: AgentDefinition = {
 
   tools: [
     'Skill',
-    'mcp_github_get_file_contents',
-    'mcp_eslint_lint'
+    'Read',
+    'mcp__github__get_file_contents',
+    'mcp__eslint__lint'
   ],
 
   model: 'inherit',
